@@ -36,11 +36,13 @@ class Shift(Awaitable[A], Generic[A, B]):
 class Continuation(Generic[A, B]):
     """A captured delimited continuation that can be invoked with a value."""
     def __init__(self, func: Callable[..., AsyncGenerator[Shift, A]],
-                 args: tuple, kwargs: dict, history: tuple) -> None:
+                 args: tuple, kwargs: dict, history: tuple, type_a: Optional[type] = None, type_b: Optional[type] = None) -> None:
         self._func = func
         self._args = args
         self._kwargs = kwargs
         self._history = history
+        self._type_a = type_a   # for runtime validation
+        self._type_b = type_b
 
     @property
     def history(self) -> tuple:
@@ -71,7 +73,7 @@ class Continuation(Generic[A, B]):
                 return event  # type: ignore
 
     def __reduce__(self):
-        return (Continuation, (self._func, self._args, self._kwargs, self._history))
+        return (Continuation, (self._func, self._args, self._kwargs, self._history,self._type_a, self._type_b))
 
     def __repr__(self):
         return f"<Continuation history={self._history}>"
