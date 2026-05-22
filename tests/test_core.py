@@ -1,6 +1,5 @@
 """Tests for the core delimited continuation engine."""
 
-import asyncio
 import pytest
 from pycontinuum.core import reset, shift, Continuation, abort
 
