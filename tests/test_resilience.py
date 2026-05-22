@@ -1,6 +1,5 @@
 """Tests for resilience combinators."""
 
-import asyncio
 import pytest
 from pycontinuum.resilience import retry, circuit_breaker, timeout, CircuitOpenError
 
