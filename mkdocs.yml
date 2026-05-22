@@ -30,22 +30,14 @@ theme:
     - search.highlight
 
 plugins:
-  - search
   - mkdocstrings:
       handlers:
         python:
-          paths: [src]
-          import:
-            - https://docs.python.org/3/objects.inv
           options:
             docstring_style: google
             show_source: true
-            show_root_heading: true
-            show_category_heading: true
-            members_order: source
-            group_by_category: true
-            filters: ["!^_"]
-            heading_level: 2
+          inventories:                       # ← correct keyword for external objects.inv
+            - https://docs.python.org/3/objects.inv
 
 markdown_extensions:
   - admonition
