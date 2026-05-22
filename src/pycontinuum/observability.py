@@ -22,7 +22,7 @@ except ImportError:
     _TRACING_AVAILABLE = False
 
 try:
-    from prometheus_client import Counter, Histogram, Gauge
+    from prometheus_client import Counter, Histogram
     _METRICS_AVAILABLE = True
 except ImportError:
     _METRICS_AVAILABLE = False
