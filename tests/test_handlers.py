@@ -7,7 +7,7 @@ from pycontinuum.handlers import StateHandler
 async def test_state_handler_manual():
     handler = StateHandler(10)
     # Simulate a direct continuation call
-    from pycontinuum.core import shift, reset
+    from pycontinuum.core import shift
 
     async def get_twice():
         a = await shift(lambda k: handler.handle(StateHandler.get_request(), k))
