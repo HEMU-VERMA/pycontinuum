@@ -9,7 +9,7 @@ import contextvars
 import functools
 import logging
 import time
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Dict, Optional
 
 # ---------------------------------------------------------------------------
 # Optional imports – if not present, instrumentation becomes a no-op
@@ -52,8 +52,7 @@ def _get_meter() -> Any:
         return None
     global _meter
     if _meter is None:
-        from prometheus_client import CollectorRegistry, Counter, Histogram
-        # Use the default registry
+        # We only need Counter and Histogram; CollectorRegistry not used
         _meter = type("Meter", (), {
             "continuation_resumes": Counter(
                 "pycontinuum_continuation_resumes_total",
@@ -82,7 +81,9 @@ def _get_meter() -> Any:
 # ---------------------------------------------------------------------------
 # Context propagation – trace IDs across continuations
 # ---------------------------------------------------------------------------
-_trace_context = contextvars.ContextVar[Optional[Dict[str, Any]]]("pycontinuum_trace", default=None)
+_trace_context = contextvars.ContextVar[Optional[Dict[str, Any]]](
+    "pycontinuum_trace", default=None
+)
 
 def _capture_trace_context() -> Dict[str, Any] | None:
     if _TRACING_AVAILABLE:
@@ -93,7 +94,6 @@ def _capture_trace_context() -> Dict[str, Any] | None:
     return None
 
 def _restore_trace_context(ctx: Dict[str, Any] | None) -> Any:
-    """Returns a new span link or parent context."""
     if not ctx or not _TRACING_AVAILABLE:
         return None
     from opentelemetry.trace import SpanContext, TraceFlags
@@ -110,7 +110,6 @@ def _restore_trace_context(ctx: Dict[str, Any] | None) -> Any:
 # ---------------------------------------------------------------------------
 class Logger:
     """Thin wrapper around structlog (or plain logging)."""
-
     def __init__(self) -> None:
         if _STRUCTLOG_AVAILABLE:
             self._logger = structlog.get_logger()
@@ -143,63 +142,62 @@ _logger = Logger()
 # Public API
 # ---------------------------------------------------------------------------
 def instrument(service_name: str = "pycontinuum") -> None:
-    """
-    Activate instrumentation for the current process.
-
+    """Activate instrumentation for the current process.
     This must be called before any effectful code.
-    It patches the core `reset` and `Continuation.__call__` to create spans
-    and record metrics.
     """
-    # Patch Continuation.__call__ to trace resumes
     _patch_continuation_call()
-
-    # Patch reset to create root spans
     _patch_reset()
-
     if _METRICS_AVAILABLE:
-        _get_meter()  # ensures metrics are registered
+        _get_meter()
         _logger.info("PyContinuum metrics registered")
 
 
 def _patch_continuation_call() -> None:
-    """Monkey‑patch Continuation.__call__ to wrap with trace & metrics."""
     from .core import Continuation
-
     original_call = Continuation.__call__
 
     @functools.wraps(original_call)
     async def traced_call(self, value):
         tracer = _get_tracer()
-        span_name = f"continuation.resume"
+        span_name = "continuation.resume"
         attributes = {"pycontinuum.value": str(value)}
         parent = _restore_trace_context(_trace_context.get())
 
-        if tracer:
-            with tracer.start_as_current_span(span_name, kind=SpanKind.INTERNAL,
-                                              attributes=attributes, links=[parent] if parent else None) as span:
-                start = time.monotonic()
-                try:
+        exc: Optional[BaseException] = None
+        start = time.monotonic()
+        try:
+            if tracer:
+                with tracer.start_as_current_span(
+                    span_name,
+                    kind=SpanKind.INTERNAL,
+                    attributes=attributes,
+                    links=[parent] if parent else None,
+                ) as span:
                     result = await original_call(self, value)
                     span.set_status(Status(StatusCode.OK))
                     return result
-                except Exception as exc:
-                    span.set_status(Status(StatusCode.ERROR, str(exc)))
-                    raise
-                finally:
-                    duration = time.monotonic() - start
-                    _get_meter().continuation_resumes.labels(status="success" if not exc else "error").inc()
-                    _get_meter().continuation_duration.labels("continuation").observe(duration)
-        else:
-            # No tracing, still record metrics if available
-            return await original_call(self, value)
+            else:
+                return await original_call(self, value)
+        except BaseException as e:
+            exc = e
+            if tracer:
+                span = trace.get_current_span()
+                span.set_status(Status(StatusCode.ERROR, str(e)))
+            raise
+        finally:
+            duration = time.monotonic() - start
+            meter = _get_meter()
+            if meter:
+                meter.continuation_resumes.labels(
+                    status="error" if exc else "success"
+                ).inc()
+                meter.continuation_duration.labels("continuation").observe(duration)
 
     Continuation.__call__ = traced_call
 
 
 def _patch_reset() -> None:
-    """Wrap the `reset` function to create a root span."""
     from . import core
-
     original_reset = core.reset
 
     @functools.wraps(original_reset)
@@ -208,13 +206,12 @@ def _patch_reset() -> None:
         span_name = f"reset {coro_func.__name__}" if hasattr(coro_func, "__name__") else "reset"
         if tracer:
             with tracer.start_as_current_span(span_name, kind=SpanKind.INTERNAL) as span:
-                # Store current trace context for later continuations
                 token = _trace_context.set(_capture_trace_context())
                 try:
                     result = await original_reset(coro_func, *args, **kwargs)
                     span.set_status(Status(StatusCode.OK))
                     return result
-                except Exception as exc:
+                except BaseException as exc:
                     span.set_status(Status(StatusCode.ERROR, str(exc)))
                     raise
                 finally:
