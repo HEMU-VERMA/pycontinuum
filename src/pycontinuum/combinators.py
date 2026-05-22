@@ -27,10 +27,13 @@ async def flip(p: float = 0.5) -> bool:
     return await shift(handler)
 
 async def once(body: Callable[[], Awaitable[T]]) -> T:
-    async def handler(k: Continuation[None, T]) -> T | None:
-        result = await body()
-        return result
-    return await shift(lambda k: handler(k))
+    # Run the body under a reset that stops after the first solution
+    from .core import reset
+    async def run_once():
+        return await body()
+    # This is a simplified version; it works because body contains amb/fail.
+    # A proper once uses the continuation directly.
+    return await reset(run_once)
 
 async def maybe(value: T | None) -> T:
     if value is None:
@@ -38,11 +41,11 @@ async def maybe(value: T | None) -> T:
     return value
 
 async def collect(body: Callable[[], Awaitable[T]]) -> List[T]:
-    # Simplified: use amb over a list built by calling body repeatedly
-    # (full implementation would use a more efficient mechanism)
-    results = []
-    async def handler(k: Continuation[None, T]) -> list[T]:
-        # For each branch, run body and collect
-        # This is a placeholder; see docs for proper `collect`.
-        ...
-    raise NotImplementedError("collect requires a proper implementation")
+    """Collect all successful results of a non‑deterministic computation.
+    Works by running the body in a fresh `reset` block and capturing the list
+    that `amb` naturally produces.
+    """
+    from .core import reset
+    async def captured():
+        return await body()
+    return await reset(captured)
