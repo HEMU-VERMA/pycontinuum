@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 import contextvars
-from typing import Any, Dict, Type, Optional
-from .core import Continuation, shift, reset
+from typing import Any, Optional
+from .core import Continuation
 from .effect import EffectRequest
 
-_current_handler: contextvars.ContextVar[Optional["Handler"]] = contextvars.ContextVar("_current_handler", default=None)
+_current_handler: contextvars.ContextVar[Optional["Handler"]] = contextvars.ContextVar(
+    "_current_handler", default=None
+)
 
-def _set_current_handler(handler: Handler):
+def _set_current_handler(handler: "Handler") -> None:
     _current_handler.set(handler)
 
-def _get_current_handler() -> Handler | None:
+def _get_current_handler() -> "Handler | None":
     return _current_handler.get()
 
 class Handler:
@@ -21,7 +23,7 @@ class Handler:
 
 class StateHandler(Handler):
     """Handler for state effects (get/put)."""
-    def __init__(self, initial):
+    def __init__(self, initial: Any) -> None:
         self._state = initial
 
     async def handle(self, request: EffectRequest, cont: Continuation) -> Any:
@@ -32,7 +34,13 @@ class StateHandler(Handler):
             return await cont(None)
         raise ValueError(f"Unknown state operation: {request.method}")
 
-# For console effects
+    def get(self) -> EffectRequest:
+        return EffectRequest(StateHandler, "get", (), {})
+
+    def put(self, value: Any) -> EffectRequest:
+        return EffectRequest(StateHandler, "put", (value,), {})
+
+# Console effect
 class ConsoleHandler(Handler):
     async def handle(self, request: EffectRequest, cont: Continuation) -> Any:
         if request.method == "read":
@@ -44,8 +52,12 @@ class ConsoleHandler(Handler):
             return await cont(None)
         raise ValueError(f"Unknown console operation: {request.method}")
 
-# Pre‑instantiated console handler for convenience
 class Console:
     """Effect for console I/O."""
-    read = staticmethod(lambda prompt: EffectRequest(Console, "read", (prompt,), {}))
-    write = staticmethod(lambda msg: EffectRequest(Console, "write", (msg,), {}))
+    @staticmethod
+    def read(prompt: str) -> EffectRequest:
+        return EffectRequest(ConsoleHandler, "read", (prompt,), {})
+
+    @staticmethod
+    def write(msg: str) -> EffectRequest:
+        return EffectRequest(ConsoleHandler, "write", (msg,), {})
