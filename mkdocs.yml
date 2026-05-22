@@ -1,0 +1,80 @@
+site_name: PyContinuum
+site_description: Delimited continuations and algebraic effects for Python
+site_author: Hemant Verma
+repo_url: https://github.com/HEMU-VERMA/pycontinuum
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - content.code.copy
+    - content.code.annotate
+    - navigation.tabs
+    - navigation.tracking
+    - navigation.indexes
+    - search.suggest
+    - search.highlight
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [src]
+          import:
+            - https://docs.python.org/3/objects.inv
+          options:
+            docstring_style: google
+            show_source: true
+            show_root_heading: true
+            show_category_heading: true
+            members_order: source
+            group_by_category: true
+            filters: ["!^_"]
+            heading_level: 2
+
+markdown_extensions:
+  - admonition
+  - codehilite
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Core Concepts: core-concepts.md
+  - Combinators: combinators.md
+  - Effects & Handlers: effects.md
+  - Resilience: resilience.md
+  - Cloud Runtime: cloud.md
+  - API Reference:
+      - core: api-reference/core.md
+      - combinators: api-reference/combinators.md
+      - handlers: api-reference/handlers.md
+      - resilience: api-reference/resilience.md
+  - Examples:
+      - Search & Logic: examples/search.md
+      - Saga Transactions: examples/saga.md
+      - Probabilistic Programming: examples/probabilistic.md
