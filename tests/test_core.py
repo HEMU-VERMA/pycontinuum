@@ -2,7 +2,7 @@
 
 import asyncio
 import pytest
-from pycontinuum.core import reset, shift, Continuation, abort, Abort
+from pycontinuum.core import reset, shift, Continuation, abort
 
 # ---------------------------------------------------------------------------
 # Basic shift / reset
