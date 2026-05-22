@@ -1,4 +1,5 @@
 site_name: PyContinuum
+site_url: https://HEMU-VERMA.github.io/pycontinuum/ 
 site_description: Delimited continuations and algebraic effects for Python
 site_author: Hemant Verma
 repo_url: https://github.com/HEMU-VERMA/pycontinuum
