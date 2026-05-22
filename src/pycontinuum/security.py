@@ -5,8 +5,7 @@ from __future__ import annotations
 import importlib
 import json
 import logging
-from typing import Any, Dict, Generic, Set, TypeVar, get_type_hints, get_origin, get_args
-
+from typing import Any, Dict, Generic, Set, TypeVar, get_origin, get_args
 from .core import Continuation
 
 T = TypeVar("T")
