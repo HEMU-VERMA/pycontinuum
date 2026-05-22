@@ -11,6 +11,20 @@ Write business logic free of infrastructure concerns, test with pure mock handle
 pip install pycontinuum
 ```
 
+## Why PyContinuum?
+
+- **Multi‑shot continuations** – Pause a function, copy its state, resume it multiple times with different values.
+
+- **Algebraic effects** – Declare side effects as types and swap interpreters for testing, production, or cloud.
+
+- **Static effect typing** – Custom mypy plugin catches missing handlers at compile time.
+
+- **Production resilience** – Retry, circuit breaker, timeout, fallback, saga, dead‑letter queue.
+
+- **Serializable workflows** – Continuations are pure data; save them to disk and resume later.
+
+- **Zero hard dependencies** – Core is pure Python + anyio; extras for tracing and cloud.
+
 ## Quick Example
 
 ```python
@@ -34,3 +48,9 @@ asyncio.run(reset(solve))  # [(1,6), (2,5), (3,4)]
 - **Effects:** effectful, perform, Effect – type‑safe algebraic effects.
 - **Handlers:** StateHandler, Console, Http, Database – batteries included.
 - **Resilience:** retry, circuit_breaker, timeout, fallback, saga – cloud‑native.
+
+## Next Steps
+
+- [Read the full documentation](#)
+- [Explore examples](#)
+- [Contribute](#)
