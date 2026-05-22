@@ -1,8 +1,7 @@
 """Tests for resilience combinators."""
 
 import pytest
-from pycontinuum.resilience import retry, circuit_breaker, timeout, CircuitOpenError
-
+from pycontinuum.resilience import retry, circuit_breaker, CircuitOpenError
 class FailingCall:
     def __init__(self, fail_count):
         self.attempts = 0
