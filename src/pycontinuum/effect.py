@@ -1,14 +1,14 @@
 """Algebraic effect system with static typing (manual generator mode)."""
 
 from __future__ import annotations
-from typing import Any, Callable, Coroutine, Dict, Type, TypeVar, Protocol, runtime_checkable
+from typing import Any, TypeVar  # removed Callable, Coroutine, Dict, Protocol, runtime_checkable
 from .core import shift, reset, Continuation
 
 T = TypeVar("T")
 
 class EffectRequest:
     """Represents a call to an effect method."""
-    def __init__(self, effect_cls: Type, method: str, args: tuple, kwargs: dict):
+    def __init__(self, effect_cls: type, method: str, args: tuple, kwargs: dict):
         self.effect_cls = effect_cls
         self.method = method
         self.args = args
@@ -18,7 +18,6 @@ class Effect:
     """Base class for effect declarations."""
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        # Create method stubs that return EffectRequest
         for name, method in cls.__dict__.items():
             if name.startswith("_") or not callable(method):
                 continue
@@ -27,8 +26,6 @@ class Effect:
 async def perform(request: EffectRequest) -> Any:
     """Suspend the computation and ask the handler to interpret this effect."""
     async def handler(cont: Continuation) -> Any:
-        # The outer run_effect must have installed a global handler.
-        # We retrieve it from a context variable.
         from .handlers import _get_current_handler
         h = _get_current_handler()
         if h is None:
@@ -49,6 +46,5 @@ async def run_effect(func, *args, **kwargs):
     Run an effectful function with a default handler.
     The handler must be set before calling this.
     """
-    from .handlers import _set_current_handler
-    # For simplicity, we require the caller to set the handler externally.
+    # _set_current_handler import removed (unused)
     return await reset(func, *args, **kwargs)
