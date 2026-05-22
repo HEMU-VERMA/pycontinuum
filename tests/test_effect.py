@@ -1,8 +1,8 @@
 """Tests for the algebraic effect system."""
 
 import pytest
-from pycontinuum.effect import Effect, perform, run_effect, effectful
-from pycontinuum.handlers import StateHandler, ConsoleHandler, _current_handler
+from pycontinuum.effect import perform  # only used
+from pycontinuum.handlers import StateHandler, _current_handler
 from pycontinuum.core import reset
 
 @pytest.mark.asyncio
