@@ -30,7 +30,7 @@ packages = ["src/pycontinuum"]
 
 [tool.mypy]
 strict = true
-plugins = "pycontinuum._mypy_plugin"
+# plugins = "pycontinuum._mypy_plugin"
 
 [tool.ruff]
 line-length = 100
