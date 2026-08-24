@@ -58,7 +58,7 @@ class _ExecutionTracker:
 
 
 class _ContinuationValue:
-    """Wrapper that supports both direct scalar equality and iterable comprehension expansion."""
+    """Wrapper that supports direct scalar equality, awaiting, and iterable expansion."""
 
     def __init__(self, value: Any) -> None:
         self._value = value
@@ -73,6 +73,15 @@ class _ContinuationValue:
 
     def __repr__(self) -> str:
         return repr(self._value)
+
+    def __await__(self) -> Any:
+        if inspect.isawaitable(self._value):
+            return self._value.__await__()
+
+        async def _resolve() -> Any:
+            return self._value
+
+        return _resolve().__await__()
 
 
 def _reconstruct_continuation(
@@ -184,6 +193,8 @@ def _execute_with_history(
     except _ShiftSignal as sig:
         captured_k = Continuation(func, args, kwargs, history[: sig.step_index])
         handler_res = sig.shift_obj.handler(captured_k)
+        if isinstance(handler_res, _ContinuationValue):
+            handler_res = handler_res._value
         if inspect.iscoroutine(handler_res):
             try:
                 while True:
