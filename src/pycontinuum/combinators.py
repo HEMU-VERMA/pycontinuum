@@ -2,65 +2,79 @@
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Awaitable, Callable
-from typing import TypeVar
+from typing import Any, TypeVar
 
-from .core import Continuation, shift
+from .core import Continuation, reset, shift
 
 T = TypeVar("T")
 
 
-async def amb[T](*choices: T) -> T:
-    async def handler(k: Continuation[T, T]) -> list[T]:
-        results = []
+async def amb(*choices: Any) -> Any:
+    """Non-deterministic choice operator."""
+
+    async def handler(k: Continuation[Any, Any]) -> list[Any]:
+        results: list[Any] = []
         for c in choices:
-            results.extend(await k(c))
+            res = k(c)
+            if inspect.isawaitable(res):
+                res = await res
+            if isinstance(res, list):
+                results.extend(res)
+            elif res is not None:
+                results.append(res)
         return results
 
     return await shift(handler)
 
 
-async def fail() -> T:
+async def fail() -> Any:
+    """Prunes the current execution branch."""
     return await shift(lambda k: [])
 
 
-async def flip(p: float = 0.5) -> bool:
-    async def handler(k: Continuation[bool, bool]) -> list:
-        results = []
-        for choice, w in [(True, p), (False, 1 - p)]:
-            branch = await k(choice)
-            results.extend([(v, weight * w) for v, weight in branch])
+async def flip(p: float = 0.5) -> Any:
+    """Probabilistic binary choice operator."""
+
+    async def handler(k: Continuation[Any, Any]) -> list[tuple[Any, float]]:
+        results: list[tuple[Any, float]] = []
+        for choice, w in [(True, p), (False, 1.0 - p)]:
+            branch = k(choice)
+            if inspect.isawaitable(branch):
+                branch = await branch
+            if isinstance(branch, list):
+                for item in branch:
+                    if isinstance(item, tuple) and len(item) == 2:
+                        v, weight = item
+                        results.append((v, weight * w))
+                    else:
+                        results.append((item, w))
+            else:
+                results.append((branch, w))
         return results
 
     return await shift(handler)
 
 
-async def once[T](body: Callable[[], Awaitable[T]]) -> T:
-    # Run the body under a reset that stops after the first solution
-    from .core import reset
-
-    async def run_once():
-        return await body()
-
-    # This is a simplified version; it works because body contains amb/fail.
-    # A proper once uses the continuation directly.
-    return await reset(run_once)
+async def once(body: Callable[[], Awaitable[T]]) -> T:
+    """Runs the computation and returns only the first successful result."""
+    res = await reset(body)
+    if isinstance(res, list) and len(res) > 0:
+        return res[0]  # type: ignore[no-any-return]
+    return res  # type: ignore[no-any-return]
 
 
-async def maybe[T](value: T | None) -> T:
+async def maybe(value: T | None) -> T:
+    """Unwraps an optional value or prunes the branch if None."""
     if value is None:
-        return await fail()
+        return await fail()  # type: ignore[no-any-return]
     return value
 
 
-async def collect[T](body: Callable[[], Awaitable[T]]) -> list[T]:
-    """Collect all successful results of a non‑deterministic computation.
-    Works by running the body in a fresh `reset` block and capturing the list
-    that `amb` naturally produces.
-    """
-    from .core import reset
-
-    async def captured():
-        return await body()
-
-    return await reset(captured)
+async def collect(body: Callable[[], Awaitable[T]]) -> list[T]:
+    """Collects all successful branches of a non-deterministic computation."""
+    res = await reset(body)
+    if isinstance(res, list):
+        return res
+    return [res]

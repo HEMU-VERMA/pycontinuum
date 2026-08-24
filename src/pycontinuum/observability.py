@@ -86,8 +86,10 @@ def _get_meter() -> Any:
 # ---------------------------------------------------------------------------
 # Context propagation – trace IDs across continuations
 # ---------------------------------------------------------------------------
-_trace_context = contextvars.ContextVar[Optional[dict[str, Any]]]("pycontinuum_trace", default=None)
-
+# _trace_context = contextvars.ContextVar[Optional[dict[str, Any]]]("pycontinuum_trace", default=None)
+_trace_context: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar(
+    "pycontinuum_trace", default=None
+)
 
 def _capture_trace_context() -> dict[str, Any] | None:
     if _TRACING_AVAILABLE:

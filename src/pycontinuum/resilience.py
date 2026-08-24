@@ -2,89 +2,132 @@
 
 from __future__ import annotations
 
-import contextlib
+import asyncio
 import random
 import time
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Any, TypeVar
 
-# Core imports no longer needed; keep only what's used.
-# (Circuit breaker state, etc.)
+T = TypeVar("T")
 
 
 class _CircuitState:
     CLOSED, OPEN, HALF_OPEN = range(3)
 
 
-_circuit_registry: dict = {}
+_circuit_registry: dict[str, dict[str, Any]] = {}
 
 
 class CircuitOpenError(Exception):
     """Raised when a circuit breaker is open."""
 
 
-@contextlib.asynccontextmanager
-async def retry(attempts: int = 3, backoff: float = 1.0, jitter: float = 0.0):
-    for i in range(attempts):
-        try:
-            yield
-            break
-        except (ConnectionError, TimeoutError):
-            if i == attempts - 1:
-                raise
-            sleep_time = backoff * (2**i) + random.uniform(0, jitter)
-            await __import__("asyncio").sleep(sleep_time)
+class _RetryContextManager:
+    def __init__(self, attempts: int, backoff: float, jitter: float) -> None:
+        self.attempts = attempts
+        self.backoff = backoff
+        self.jitter = jitter
+        self.current_attempt = 0
+
+    async def __aenter__(self) -> _RetryContextManager:
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: Any,
+    ) -> bool:
+        if exc_type is not None and issubclass(exc_type, (ConnectionError, TimeoutError)):
+            self.current_attempt += 1
+            if self.current_attempt < self.attempts:
+                sleep_time = self.backoff * (2 ** (self.current_attempt - 1)) + random.uniform(
+                    0, self.jitter
+                )
+                await asyncio.sleep(sleep_time)
+                return True
+        return False
 
 
-@contextlib.asynccontextmanager
-async def circuit_breaker(name: str, max_failures: int = 5, reset_timeout: float = 30):
-    state = _circuit_registry.setdefault(
-        name, {"state": _CircuitState.CLOSED, "failures": 0, "last_open": 0.0}
-    )
-    if state["state"] == _CircuitState.OPEN:
-        if time.monotonic() - state["last_open"] > reset_timeout:
-            state["state"] = _CircuitState.HALF_OPEN
-        else:
-            raise CircuitOpenError(f"Circuit {name} is OPEN")
-    try:
-        yield
-        if state["state"] == _CircuitState.HALF_OPEN:
-            state["state"] = _CircuitState.CLOSED
-        state["failures"] = 0
-    except Exception:
+def retry(attempts: int = 3, backoff: float = 1.0, jitter: float = 0.0) -> _RetryContextManager:
+    return _RetryContextManager(attempts, backoff, jitter)
+
+
+class _CircuitBreakerContextManager:
+    def __init__(self, name: str, max_failures: int = 5, reset_timeout: float = 30.0) -> None:
+        self.name = name
+        self.max_failures = max_failures
+        self.reset_timeout = reset_timeout
+
+    async def __aenter__(self) -> _CircuitBreakerContextManager:
+        state = _circuit_registry.setdefault(
+            self.name, {"state": _CircuitState.CLOSED, "failures": 0, "last_open": 0.0}
+        )
+        if state["state"] == _CircuitState.OPEN:
+            if time.monotonic() - state["last_open"] > self.reset_timeout:
+                state["state"] = _CircuitState.HALF_OPEN
+            else:
+                raise CircuitOpenError(f"Circuit {self.name} is OPEN")
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: Any,
+    ) -> bool:
+        state = _circuit_registry.setdefault(
+            self.name, {"state": _CircuitState.CLOSED, "failures": 0, "last_open": 0.0}
+        )
+        if exc_type is None:
+            if state["state"] == _CircuitState.HALF_OPEN:
+                state["state"] = _CircuitState.CLOSED
+            state["failures"] = 0
+            return False
+
         state["failures"] += 1
-        if state["failures"] >= max_failures:
+        if state["failures"] >= self.max_failures:
             state["state"] = _CircuitState.OPEN
             state["last_open"] = time.monotonic()
-        raise
+        return False
 
 
-@contextlib.asynccontextmanager
-async def timeout(seconds: float):
-    import anyio
-
-    with anyio.move_on_after(seconds) as scope:
-        yield
-        if scope.cancelled_caught:
-            raise TimeoutError()
+def circuit_breaker(
+    name: str, max_failures: int = 5, reset_timeout: float = 30.0
+) -> _CircuitBreakerContextManager:
+    return _CircuitBreakerContextManager(name, max_failures, reset_timeout)
 
 
-async def fallback(primary: Callable[[], Awaitable], secondary: Callable[[], Awaitable]) -> Any:
+async def fallback(
+    primary: Callable[[], Awaitable[T]],
+    secondary: Callable[[], Awaitable[T]],
+) -> T:
     try:
         return await primary()
-    except Exception:
+    except Exception:  # noqa: BLE001
         return await secondary()
 
 
-def saga(func):
-    func._is_saga = True
+def saga(func: Callable[..., Any]) -> Callable[..., Any]:
+    func._is_saga = True  # type: ignore[attr-defined]
     return func
 
 
-@contextlib.asynccontextmanager
-async def dlq(queue_name: str):
-    try:
-        yield
-    except Exception:
-        # In production, publish continuation to dead‑letter queue.
-        raise
+class _DlqContextManager:
+    def __init__(self, queue_name: str) -> None:
+        self.queue_name = queue_name
+
+    async def __aenter__(self) -> _DlqContextManager:
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: Any,
+    ) -> bool:
+        return False
+
+
+def dlq(queue_name: str) -> _DlqContextManager:
+    return _DlqContextManager(queue_name)
