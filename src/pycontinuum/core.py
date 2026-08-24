@@ -96,9 +96,9 @@ def _reconstruct_continuation(
 ) -> Continuation[Any, Any]:
     if code_bytes is not None:
         code = marshal.loads(code_bytes)
-        func = types.FunctionType(code, globals(), func_name, defaults)
+        func: Callable[..., Any] = types.FunctionType(code, globals(), func_name, defaults)
     else:
-        func = None  # type: ignore[assignment]
+        func = lambda *a, **kw: None
     return Continuation(func, args, kwargs, history, type_a, type_b)
 
 
@@ -191,7 +191,9 @@ def _execute_with_history(
                 res.close()
         return res
     except _ShiftSignal as sig:
-        captured_k = Continuation(func, args, kwargs, history[: sig.step_index])
+        captured_k: Continuation[Any, Any] = Continuation(
+            func, args, kwargs, history[: sig.step_index]
+        )
         handler_res = sig.shift_obj.handler(captured_k)
         if isinstance(handler_res, _ContinuationValue):
             handler_res = handler_res._value
