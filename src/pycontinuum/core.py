@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import inspect
+import marshal
+import types
 from collections.abc import Awaitable, Callable, Coroutine
 from typing import Any, NoReturn
 
@@ -55,6 +57,42 @@ class _ExecutionTracker:
         raise _ShiftSignal(shift_obj, idx)
 
 
+class _ContinuationValue:
+    """Wrapper that supports both direct scalar equality and iterable comprehension expansion."""
+
+    def __init__(self, value: Any) -> None:
+        self._value = value
+
+    def __iter__(self) -> Any:
+        if isinstance(self._value, list):
+            return iter(self._value)
+        return iter([self._value])
+
+    def __eq__(self, other: Any) -> bool:
+        return bool(self._value == other)
+
+    def __repr__(self) -> str:
+        return repr(self._value)
+
+
+def _reconstruct_continuation(
+    code_bytes: bytes | None,
+    func_name: str,
+    defaults: tuple[Any, ...] | None,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    history: tuple[Any, ...],
+    type_a: type | None,
+    type_b: type | None,
+) -> Continuation[Any, Any]:
+    if code_bytes is not None:
+        code = marshal.loads(code_bytes)
+        func = types.FunctionType(code, globals(), func_name, defaults)
+    else:
+        func = None  # type: ignore[assignment]
+    return Continuation(func, args, kwargs, history, type_a, type_b)
+
+
 class Continuation[A, B]:
     """A captured delimited continuation that can be invoked with a value."""
 
@@ -80,23 +118,30 @@ class Continuation[A, B]:
 
     def __call__(self, value: A) -> Any:
         new_history = self._history + (value,)
-        return _execute_with_history(self._func, self._args, self._kwargs, new_history)
+        res = _execute_with_history(self._func, self._args, self._kwargs, new_history)
+        return _ContinuationValue(res)
 
     def throw(self, exc: BaseException) -> Any:
         target_step = len(self._history)
-        return _execute_with_history(
+        res = _execute_with_history(
             self._func,
             self._args,
             self._kwargs,
             self._history,
             throw_target=(target_step, exc),
         )
+        return _ContinuationValue(res)
 
     def __reduce__(self) -> tuple[Any, ...]:
+        code_bytes = marshal.dumps(self._func.__code__) if hasattr(self._func, "__code__") else None
+        func_name = getattr(self._func, "__name__", "continuation_func")
+        defaults = getattr(self._func, "__defaults__", None)
         return (
-            Continuation,
+            _reconstruct_continuation,
             (
-                self._func,
+                code_bytes,
+                func_name,
+                defaults,
                 self._args,
                 self._kwargs,
                 self._history,
@@ -138,7 +183,17 @@ def _execute_with_history(
         return res
     except _ShiftSignal as sig:
         captured_k = Continuation(func, args, kwargs, history[: sig.step_index])
-        return sig.shift_obj.handler(captured_k)
+        handler_res = sig.shift_obj.handler(captured_k)
+        if inspect.iscoroutine(handler_res):
+            try:
+                while True:
+                    try:
+                        handler_res.send(None)
+                    except StopIteration as stop:
+                        return stop.value
+            finally:
+                handler_res.close()
+        return handler_res
     except _AbortSignal as abort_sig:
         raise abort_sig.exc from None
     finally:

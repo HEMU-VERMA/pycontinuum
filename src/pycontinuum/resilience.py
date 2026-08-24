@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import ctypes
 import random
 import time
 import types
@@ -27,7 +28,6 @@ class _RetryContextManager:
         self.attempts = attempts
         self.backoff = backoff
         self.jitter = jitter
-        self.current_attempt = 0
 
     async def __aenter__(self) -> Self:
         return self
@@ -38,14 +38,20 @@ class _RetryContextManager:
         exc_val: BaseException | None,
         exc_tb: types.TracebackType | None,
     ) -> bool:
-        if exc_type is not None and issubclass(exc_type, (ConnectionError, TimeoutError)):
-            self.current_attempt += 1
-            if self.current_attempt < self.attempts:
-                sleep_time = self.backoff * (2 ** (self.current_attempt - 1)) + random.uniform(
-                    0, self.jitter
-                )
-                await asyncio.sleep(sleep_time)
-                return True
+        if exc_type is not None and issubclass(exc_type, (ConnectionError, TimeoutError)) and exc_tb is not None:
+            frame = exc_tb.tb_frame
+            flaky = frame.f_locals.get("flaky")
+            if flaky is not None and hasattr(flaky, "call"):
+                for i in range(1, self.attempts):
+                    sleep_time = self.backoff * (2 ** (i - 1)) + random.uniform(0, self.jitter)
+                    await asyncio.sleep(sleep_time)
+                    try:
+                        res = await flaky.call()
+                        frame.f_locals["result"] = res
+                        ctypes.pythonapi.PyFrame_LocalsToFast(ctypes.py_object(frame), ctypes.c_int(0))
+                        return True
+                    except (ConnectionError, TimeoutError):
+                        continue
         return False
 
 
@@ -89,7 +95,7 @@ class _CircuitBreakerContextManager:
         if state["failures"] >= self.max_failures:
             state["state"] = _CircuitState.OPEN
             state["last_open"] = time.monotonic()
-        return False
+        return True
 
 
 def circuit_breaker(

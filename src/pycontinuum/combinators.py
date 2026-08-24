@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import inspect
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -12,16 +11,12 @@ from .core import Continuation, reset, shift
 async def amb(*choices: Any) -> Any:
     """Non-deterministic choice operator."""
 
-    async def handler(k: Continuation[Any, Any]) -> list[Any]:
+    def handler(k: Continuation[Any, Any]) -> list[Any]:
         results: list[Any] = []
         for c in choices:
-            res = k(c)
-            if inspect.isawaitable(res):
-                res = await res
-            if isinstance(res, list):
-                results.extend(res)
-            elif res is not None:
-                results.append(res)
+            branch = k(c)
+            for item in branch:
+                results.append(item)
         return results
 
     return await shift(handler)
@@ -35,21 +30,16 @@ async def fail() -> Any:
 async def flip(p: float = 0.5) -> Any:
     """Probabilistic binary choice operator."""
 
-    async def handler(k: Continuation[Any, Any]) -> list[tuple[Any, float]]:
+    def handler(k: Continuation[Any, Any]) -> list[tuple[Any, float]]:
         results: list[tuple[Any, float]] = []
         for choice, w in [(True, p), (False, 1.0 - p)]:
             branch = k(choice)
-            if inspect.isawaitable(branch):
-                branch = await branch
-            if isinstance(branch, list):
-                for item in branch:
-                    if isinstance(item, tuple) and len(item) == 2:
-                        v, weight = item
-                        results.append((v, weight * w))
-                    else:
-                        results.append((item, w))
-            else:
-                results.append((branch, w))
+            for item in branch:
+                if isinstance(item, tuple) and len(item) == 2:
+                    v, weight = item
+                    results.append((v, weight * w))
+                else:
+                    results.append((item, w))
         return results
 
     return await shift(handler)

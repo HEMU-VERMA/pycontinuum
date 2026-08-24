@@ -5,10 +5,9 @@ from __future__ import annotations
 import contextvars
 import logging
 import time
-from typing import Any
+import types
+from typing import Any, Self
 
-# Context propagation – trace IDs across continuations
-# ---------------------------------------------------------------------------
 _trace_context: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar(
     "pycontinuum_trace", default=None
 )
@@ -39,7 +38,7 @@ class _SpanContext:
         self.logger = logger
         self.start_time = 0.0
 
-    async def __aenter__(self) -> _SpanContext:
+    async def __aenter__(self) -> Self:
         self.start_time = time.monotonic()
         return self
 
