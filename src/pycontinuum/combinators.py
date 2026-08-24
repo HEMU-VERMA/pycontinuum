@@ -15,8 +15,7 @@ async def amb(*choices: Any) -> Any:
         results: list[Any] = []
         for c in choices:
             branch = k(c)
-            for item in branch:
-                results.append(item)
+            results.extend(branch)
         return results
 
     return await shift(handler)

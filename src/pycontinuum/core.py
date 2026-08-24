@@ -68,7 +68,7 @@ class _ContinuationValue:
             return iter(self._value)
         return iter([self._value])
 
-    def __eq__(self, other: Any) -> bool:
+    def __eq__(self, other: object) -> bool:
         return bool(self._value == other)
 
     def __repr__(self) -> str:

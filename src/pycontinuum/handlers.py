@@ -24,10 +24,11 @@ class StateHandler:
     def put(val: Any) -> tuple[str, Any]:
         return ("put", val)
 
-    def handle(self, req: tuple[Any, ...]) -> Any:
-        if req[0] == "get":
-            return self.state
-        if req[0] == "put":
-            self.state = req[1]
-            return None
+    def handle(self, req: Any) -> Any:
+        if isinstance(req, tuple) and len(req) > 0:
+            if req[0] == "get":
+                return self.state
+            if req[0] == "put":
+                self.state = req[1]
+                return None
         return None
