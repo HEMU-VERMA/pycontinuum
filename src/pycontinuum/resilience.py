@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import random
 import time
+import types
 from collections.abc import Awaitable, Callable
-from typing import Any, TypeVar
-
-T = TypeVar("T")
+from typing import Any, Self
 
 
 class _CircuitState:
@@ -29,14 +29,14 @@ class _RetryContextManager:
         self.jitter = jitter
         self.current_attempt = 0
 
-    async def __aenter__(self) -> _RetryContextManager:
+    async def __aenter__(self) -> Self:
         return self
 
     async def __aexit__(
         self,
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
-        exc_tb: Any,
+        exc_tb: types.TracebackType | None,
     ) -> bool:
         if exc_type is not None and issubclass(exc_type, (ConnectionError, TimeoutError)):
             self.current_attempt += 1
@@ -59,7 +59,7 @@ class _CircuitBreakerContextManager:
         self.max_failures = max_failures
         self.reset_timeout = reset_timeout
 
-    async def __aenter__(self) -> _CircuitBreakerContextManager:
+    async def __aenter__(self) -> Self:
         state = _circuit_registry.setdefault(
             self.name, {"state": _CircuitState.CLOSED, "failures": 0, "last_open": 0.0}
         )
@@ -74,7 +74,7 @@ class _CircuitBreakerContextManager:
         self,
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
-        exc_tb: Any,
+        exc_tb: types.TracebackType | None,
     ) -> bool:
         state = _circuit_registry.setdefault(
             self.name, {"state": _CircuitState.CLOSED, "failures": 0, "last_open": 0.0}
@@ -98,7 +98,17 @@ def circuit_breaker(
     return _CircuitBreakerContextManager(name, max_failures, reset_timeout)
 
 
-async def fallback(
+@contextlib.asynccontextmanager
+async def timeout(seconds: float):
+    import anyio
+
+    with anyio.move_on_after(seconds) as scope:
+        yield
+        if scope.cancelled_caught:
+            raise TimeoutError()
+
+
+async def fallback[T](
     primary: Callable[[], Awaitable[T]],
     secondary: Callable[[], Awaitable[T]],
 ) -> T:
@@ -117,14 +127,14 @@ class _DlqContextManager:
     def __init__(self, queue_name: str) -> None:
         self.queue_name = queue_name
 
-    async def __aenter__(self) -> _DlqContextManager:
+    async def __aenter__(self) -> Self:
         return self
 
     async def __aexit__(
         self,
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
-        exc_tb: Any,
+        exc_tb: types.TracebackType | None,
     ) -> bool:
         return False
 

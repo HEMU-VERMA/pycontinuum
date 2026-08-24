@@ -4,11 +4,9 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Awaitable, Callable
-from typing import Any, TypeVar
+from typing import Any
 
 from .core import Continuation, reset, shift
-
-T = TypeVar("T")
 
 
 async def amb(*choices: Any) -> Any:
@@ -57,7 +55,7 @@ async def flip(p: float = 0.5) -> Any:
     return await shift(handler)
 
 
-async def once(body: Callable[[], Awaitable[T]]) -> T:
+async def once[T](body: Callable[[], Awaitable[T]]) -> T:
     """Runs the computation and returns only the first successful result."""
     res = await reset(body)
     if isinstance(res, list) and len(res) > 0:
@@ -65,14 +63,14 @@ async def once(body: Callable[[], Awaitable[T]]) -> T:
     return res  # type: ignore[no-any-return]
 
 
-async def maybe(value: T | None) -> T:
+async def maybe[T](value: T | None) -> T:
     """Unwraps an optional value or prunes the branch if None."""
     if value is None:
         return await fail()  # type: ignore[no-any-return]
     return value
 
 
-async def collect(body: Callable[[], Awaitable[T]]) -> list[T]:
+async def collect[T](body: Callable[[], Awaitable[T]]) -> list[T]:
     """Collects all successful branches of a non-deterministic computation."""
     res = await reset(body)
     if isinstance(res, list):

@@ -4,10 +4,7 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Awaitable, Callable, Coroutine
-from typing import Any, Generic, NoReturn, TypeVar
-
-A = TypeVar("A")
-B = TypeVar("B")
+from typing import Any, NoReturn
 
 
 class _ShiftSignal(BaseException):
@@ -25,7 +22,7 @@ class _AbortSignal(BaseException):
         self.exc = exc
 
 
-class Shift(Generic[A, B], Awaitable[A]):
+class Shift[A, B](Awaitable[A]):
     """Suspends the computation and yields control to a handler."""
 
     def __init__(self, handler: Callable[[Continuation[A, B]], Any]) -> None:
@@ -58,7 +55,7 @@ class _ExecutionTracker:
         raise _ShiftSignal(shift_obj, idx)
 
 
-class Continuation(Generic[A, B]):
+class Continuation[A, B]:
     """A captured delimited continuation that can be invoked with a value."""
 
     def __init__(
@@ -158,7 +155,11 @@ async def reset(
     """Delimited continuation delimiter (reset)."""
     if inspect.iscoroutine(coro_or_func):
         coro = coro_or_func
-        func = lambda: coro  # noqa: E731
+
+        def wrapper() -> Any:
+            return coro
+
+        func = wrapper
     elif callable(coro_or_func):
         func = coro_or_func
     else:
