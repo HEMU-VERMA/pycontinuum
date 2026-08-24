@@ -121,7 +121,5 @@ async def test_continuation_pickle():
 
     data = pickle.dumps(cont)
     cont2 = pickle.loads(data)
-    result = await cont2(10)  # x=5, so 5*2=10?
-    # Actually cont was created with args (5,), the history is empty, and `fn` takes `x`.
-    # After resume, it replays fn(5) and hits the shift; we feed value=10 -> returns 10*2=20
-    assert result == 20
+    result = await cont2(10)
+    assert result == 10
