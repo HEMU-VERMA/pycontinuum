@@ -13,10 +13,12 @@ dependencies = [
     "anyio>=4",
     "typing_extensions>=4.12; python_version < '3.13'",
 ]
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8",
     "pytest-asyncio>=0.25",
+    "pytest-cov>=5.0",
     "hypothesis>=6",
     "mypy>=1.13",
     "ruff>=0.9",
@@ -29,8 +31,11 @@ cloud = ["grpcio>=1.70", "protobuf>=5"]
 packages = ["src/pycontinuum"]
 
 [tool.mypy]
+python_version = "3.12"
 strict = true
-# plugins = "pycontinuum._mypy_plugin"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = false
 
 [tool.ruff]
 line-length = 100
