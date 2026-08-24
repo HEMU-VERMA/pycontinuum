@@ -41,12 +41,14 @@ pip install pycontinuum[dev]
 import asyncio
 from pycontinuum import reset, amb, fail
 
+
 async def solve():
     a = await amb(1, 2, 3)
     b = await amb(4, 5, 6)
     if a + b != 7:
         await fail()
     return (a, b)
+
 
 asyncio.run(reset(solve))  # [(1,6), (2,5), (3,4)]
 ```
@@ -88,10 +90,12 @@ Imagine pausing a function halfway through, freezing its state, and later resumi
 import asyncio
 from pycontinuum import reset, shift
 
+
 async def ask_name():
     # shift pauses and passes control to a handler
     name = await shift(lambda k: k("World"))
     return f"Hello, {name}!"
+
 
 result = await asyncio.run(reset(ask_name))
 # Hello, World!
@@ -109,6 +113,7 @@ result = await asyncio.run(reset(ask_name))
 async def choose():
     x = await shift(lambda k: [k(10), k(20)])
     return x
+
 
 results = await asyncio.run(reset(choose))
 # [10, 20] – the handler called k twice!
@@ -163,6 +168,7 @@ async def find():
         await fail()
     return (x, y)
 
+
 results = await reset(find)
 # [(1, 6), (2, 3), (3, 2), (6, 1)]
 ```
@@ -185,6 +191,7 @@ async def two_flips():
     a = await flip(0.6)  # True with 60% weight
     b = await flip(0.4)
     return (a, b)
+
 
 results = await reset(two_flips)
 # [((True, True), 0.24), ((True, False), 0.36), ...]
@@ -218,6 +225,7 @@ Effects let you declare what your code needs without actually implementing it. T
 ```python
 from pycontinuum import Effect
 
+
 class Database(Effect):
     async def query(sql: str) -> Any: ...
     async def execute(sql: str) -> None: ...
@@ -228,6 +236,7 @@ class Database(Effect):
 ```python
 from pycontinuum import perform
 
+
 async def get_user(user_id: int):
     user = await perform(Database.query(f"SELECT * FROM users WHERE id={user_id}"))
     return user
@@ -237,6 +246,7 @@ async def get_user(user_id: int):
 
 ```python
 from pycontinuum.handlers import Handler
+
 
 class MockDatabaseHandler(Handler):
     async def handle(self, request, cont):
@@ -302,10 +312,7 @@ Try primary, fall back to secondary on failure.
 ```python
 from pycontinuum.resilience import fallback
 
-result = await fallback(
-    lambda: perform(primary()),
-    lambda: perform(secondary())
-)
+result = await fallback(lambda: perform(primary()), lambda: perform(secondary()))
 ```
 
 ### `saga` – Distributed Transactions
@@ -315,6 +322,7 @@ Execute steps with automatic compensation on failure.
 ```python
 from pycontinuum.resilience import saga
 from pycontinuum import effectful
+
 
 @saga
 @effectful
@@ -430,6 +438,7 @@ Integrates with `structlog` for context-aware logging with trace IDs.
 ```python
 colors = ["red", "green", "blue"]
 
+
 async def color_map(regions):
     coloring = {}
     for region in regions:
@@ -439,6 +448,7 @@ async def color_map(regions):
             if neighbor in coloring and coloring[neighbor] == coloring[region]:
                 await fail()
     return coloring
+
 
 solution = await reset(color_map, regions_list)
 ```

@@ -1,16 +1,21 @@
 """Tests for resilience combinators."""
 
 import pytest
-from pycontinuum.resilience import retry, circuit_breaker, CircuitOpenError
+
+from pycontinuum.resilience import CircuitOpenError, circuit_breaker, retry
+
+
 class FailingCall:
     def __init__(self, fail_count):
         self.attempts = 0
         self.fail_count = fail_count
+
     async def call(self):
         self.attempts += 1
         if self.attempts <= self.fail_count:
             raise ConnectionError("temporary")
         return "success"
+
 
 @pytest.mark.asyncio
 async def test_retry_success():
@@ -19,6 +24,7 @@ async def test_retry_success():
         result = await flaky.call()
     assert result == "success"
     assert flaky.attempts == 3
+
 
 @pytest.mark.asyncio
 async def test_circuit_breaker_opens():

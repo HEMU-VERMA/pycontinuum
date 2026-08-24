@@ -9,7 +9,7 @@ import contextvars
 import functools
 import logging
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 # ---------------------------------------------------------------------------
 # Optional imports – if not present, instrumentation becomes a no-op
@@ -17,18 +17,21 @@ from typing import Any, Dict, Optional
 try:
     from opentelemetry import trace
     from opentelemetry.trace import SpanKind, Status, StatusCode
+
     _TRACING_AVAILABLE = True
 except ImportError:
     _TRACING_AVAILABLE = False
 
 try:
     from prometheus_client import Counter, Histogram
+
     _METRICS_AVAILABLE = True
 except ImportError:
     _METRICS_AVAILABLE = False
 
 try:
     import structlog
+
     _STRUCTLOG_AVAILABLE = True
 except ImportError:
     _STRUCTLOG_AVAILABLE = False
@@ -40,11 +43,13 @@ except ImportError:
 _tracer = None
 _meter = None
 
+
 def _get_tracer() -> Any:
     global _tracer
     if _tracer is None and _TRACING_AVAILABLE:
         _tracer = trace.get_tracer("pycontinuum")
     return _tracer
+
 
 def _get_meter() -> Any:
     """Returns a no-op meter if Prometheus not available."""
@@ -53,50 +58,55 @@ def _get_meter() -> Any:
     global _meter
     if _meter is None:
         # We only need Counter and Histogram; CollectorRegistry not used
-        _meter = type("Meter", (), {
-            "continuation_resumes": Counter(
-                "pycontinuum_continuation_resumes_total",
-                "Number of times continuations were resumed",
-                ["status"]
-            ),
-            "effect_calls": Counter(
-                "pycontinuum_effect_calls_total",
-                "Number of effect calls",
-                ["effect", "method"]
-            ),
-            "branch_exploration": Counter(
-                "pycontinuum_branch_exploration_total",
-                "Branches explored (amb calls)",
-                []
-            ),
-            "continuation_duration": Histogram(
-                "pycontinuum_continuation_duration_seconds",
-                "Duration of continuation block execution",
-                ["type"]
-            ),
-        })()
+        _meter = type(
+            "Meter",
+            (),
+            {
+                "continuation_resumes": Counter(
+                    "pycontinuum_continuation_resumes_total",
+                    "Number of times continuations were resumed",
+                    ["status"],
+                ),
+                "effect_calls": Counter(
+                    "pycontinuum_effect_calls_total", "Number of effect calls", ["effect", "method"]
+                ),
+                "branch_exploration": Counter(
+                    "pycontinuum_branch_exploration_total", "Branches explored (amb calls)", []
+                ),
+                "continuation_duration": Histogram(
+                    "pycontinuum_continuation_duration_seconds",
+                    "Duration of continuation block execution",
+                    ["type"],
+                ),
+            },
+        )()
     return _meter
 
 
 # ---------------------------------------------------------------------------
 # Context propagation – trace IDs across continuations
 # ---------------------------------------------------------------------------
-_trace_context = contextvars.ContextVar[Optional[Dict[str, Any]]](
-    "pycontinuum_trace", default=None
-)
+_trace_context = contextvars.ContextVar[Optional[dict[str, Any]]]("pycontinuum_trace", default=None)
 
-def _capture_trace_context() -> Dict[str, Any] | None:
+
+def _capture_trace_context() -> dict[str, Any] | None:
     if _TRACING_AVAILABLE:
         span = trace.get_current_span()
         if span.is_recording():
             ctx = span.get_span_context()
-            return {"trace_id": ctx.trace_id, "span_id": ctx.span_id, "trace_flags": ctx.trace_flags}
+            return {
+                "trace_id": ctx.trace_id,
+                "span_id": ctx.span_id,
+                "trace_flags": ctx.trace_flags,
+            }
     return None
 
-def _restore_trace_context(ctx: Dict[str, Any] | None) -> Any:
+
+def _restore_trace_context(ctx: dict[str, Any] | None) -> Any:
     if not ctx or not _TRACING_AVAILABLE:
         return None
     from opentelemetry.trace import SpanContext, TraceFlags
+
     return SpanContext(
         trace_id=ctx["trace_id"],
         span_id=ctx["span_id"],
@@ -110,6 +120,7 @@ def _restore_trace_context(ctx: Dict[str, Any] | None) -> Any:
 # ---------------------------------------------------------------------------
 class Logger:
     """Thin wrapper around structlog (or plain logging)."""
+
     def __init__(self) -> None:
         if _STRUCTLOG_AVAILABLE:
             self._logger = structlog.get_logger()
@@ -154,6 +165,7 @@ def instrument(service_name: str = "pycontinuum") -> None:
 
 def _patch_continuation_call() -> None:
     from .core import Continuation
+
     original_call = Continuation.__call__
 
     @functools.wraps(original_call)
@@ -163,7 +175,7 @@ def _patch_continuation_call() -> None:
         attributes = {"pycontinuum.value": str(value)}
         parent = _restore_trace_context(_trace_context.get())
 
-        exc: Optional[BaseException] = None
+        exc: BaseException | None = None
         start = time.monotonic()
         try:
             if tracer:
@@ -188,9 +200,7 @@ def _patch_continuation_call() -> None:
             duration = time.monotonic() - start
             meter = _get_meter()
             if meter:
-                meter.continuation_resumes.labels(
-                    status="error" if exc else "success"
-                ).inc()
+                meter.continuation_resumes.labels(status="error" if exc else "success").inc()
                 meter.continuation_duration.labels("continuation").observe(duration)
 
     Continuation.__call__ = traced_call
@@ -198,6 +208,7 @@ def _patch_continuation_call() -> None:
 
 def _patch_reset() -> None:
     from . import core
+
     original_reset = core.reset
 
     @functools.wraps(original_reset)

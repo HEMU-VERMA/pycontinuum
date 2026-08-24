@@ -1,21 +1,27 @@
 """Resilience combinators built on continuations."""
 
 from __future__ import annotations
-import time
-import random
+
 import contextlib
-from typing import Any, Callable, Awaitable
+import random
+import time
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 # Core imports no longer needed; keep only what's used.
 # (Circuit breaker state, etc.)
 
+
 class _CircuitState:
     CLOSED, OPEN, HALF_OPEN = range(3)
 
+
 _circuit_registry: dict = {}
+
 
 class CircuitOpenError(Exception):
     """Raised when a circuit breaker is open."""
+
 
 @contextlib.asynccontextmanager
 async def retry(attempts: int = 3, backoff: float = 1.0, jitter: float = 0.0):
@@ -26,8 +32,9 @@ async def retry(attempts: int = 3, backoff: float = 1.0, jitter: float = 0.0):
         except (ConnectionError, TimeoutError):
             if i == attempts - 1:
                 raise
-            sleep_time = backoff * (2 ** i) + random.uniform(0, jitter)
+            sleep_time = backoff * (2**i) + random.uniform(0, jitter)
             await __import__("asyncio").sleep(sleep_time)
+
 
 @contextlib.asynccontextmanager
 async def circuit_breaker(name: str, max_failures: int = 5, reset_timeout: float = 30):
@@ -51,13 +58,16 @@ async def circuit_breaker(name: str, max_failures: int = 5, reset_timeout: float
             state["last_open"] = time.monotonic()
         raise
 
+
 @contextlib.asynccontextmanager
 async def timeout(seconds: float):
     import anyio
+
     with anyio.move_on_after(seconds) as scope:
         yield
         if scope.cancelled_caught:
             raise TimeoutError()
+
 
 async def fallback(primary: Callable[[], Awaitable], secondary: Callable[[], Awaitable]) -> Any:
     try:
@@ -65,9 +75,11 @@ async def fallback(primary: Callable[[], Awaitable], secondary: Callable[[], Awa
     except Exception:
         return await secondary()
 
+
 def saga(func):
     func._is_saga = True
     return func
+
 
 @contextlib.asynccontextmanager
 async def dlq(queue_name: str):
