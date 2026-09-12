@@ -8,7 +8,7 @@ import ctypes
 import random
 import time
 import types
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any, Self
 
 
@@ -105,7 +105,7 @@ def circuit_breaker(
 
 
 @contextlib.asynccontextmanager
-async def timeout(seconds: float):
+async def timeout(seconds: float) -> AsyncIterator[None]:
     import anyio
 
     with anyio.move_on_after(seconds) as scope:
