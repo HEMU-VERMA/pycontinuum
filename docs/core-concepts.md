@@ -1,62 +1,91 @@
 # Core Concepts
 
-## The continuation model
+## Continuations
 
-A continuation is the rest of a computation from a particular point onward. PyContinuum uses replay to capture that rest of the computation up to the nearest `reset` boundary.
+A continuation is the rest of a computation from a particular point onward.
 
-The important pieces are:
-
-- `reset()` — establishes the delimiter.
-- `shift()` — captures the current continuation.
-- `Continuation` — represents the captured remainder.
-- `abort()` — exits the current delimited computation.
+PyContinuum captures that remainder up to the nearest reset boundary and represents it as a Continuation object.
 
 ## reset
 
-`reset` accepts an async callable or coroutine and evaluates it inside a fresh execution history:
+reset establishes a delimited boundary:
 
-```python
-result = await reset(my_function, argument)
-```
+~~~python
+result = await reset(workflow)
+~~~
+
+Only computation inside that boundary can be captured by shift.
 
 ## shift
 
-A shift handler receives the continuation:
+shift suspends the current computation and passes its continuation to a handler:
 
-```python
+~~~python
 async def workflow():
-    value = await shift(lambda k: k(42))
-    return value
-```
+    answer = await shift(lambda k: k(42))
+    return answer
+~~~
 
-The handler can decide whether to resume, how many times to resume, and what values to provide.
+Calling k(42) resumes the computation with 42 at the suspension point.
 
-## Multi-shot behavior
+## Multi-shot execution
 
-Because resumption replays the computation, the same continuation can be called repeatedly:
+The same continuation can be resumed more than once:
 
-```python
+~~~python
 async def workflow():
-    value = await shift(lambda k: [k("A"), k("B")])
-    return value
-```
+    answer = await shift(lambda k: [k(10), k(20)])
+    return answer
+~~~
 
-This is the foundation for branching computations.
+The captured computation is replayed for each supplied value.
 
 ## Exceptions
 
-A continuation also supports `throw`:
+A continuation can also be resumed by injecting an exception:
 
-```python
-result = await continuation.throw(ValueError("invalid"))
-```
+~~~python
+result = continuation.throw(ValueError("invalid"))
+~~~
 
-Use this when the next execution should receive an exception rather than a normal value.
+This is useful when the next execution should handle an error at the captured suspension point.
 
-## Aborting
+## abort
 
-`abort()` raises an internal control-flow signal that is converted back into the requested exception at the continuation boundary.
+abort terminates the current delimited computation with an exception.
 
-## Design guidance
+~~~python
+from pycontinuum import abort
 
-Keep `reset` at a clear application boundary. Capture continuations only around computations that you intend to replay, and keep external side effects behind explicit handlers so replay does not accidentally duplicate infrastructure operations.
+await abort(RuntimeError("workflow stopped"))
+~~~
+
+## Why replay?
+
+Python does not expose a safe way to clone an interpreter stack. PyContinuum instead records suspension decisions and replays the function with its recorded history.
+
+This provides multi-shot behavior while keeping application code as ordinary async Python.
+
+## Side effects
+
+Replay means irreversible effects must be isolated.
+
+Safe to replay:
+- calculations
+- validation
+- parsing
+- pure domain logic
+
+Protect or isolate:
+- database writes
+- payments
+- message publishing
+- external HTTP mutations
+
+Use the effect/handler layer for infrastructure operations.
+
+## When to use continuations
+
+Good fits include constraint solving, backtracking, parser exploration, probabilistic branching, resumable workflows, and structured effect handling.
+
+For ordinary linear async code, normal async/await is simpler.
