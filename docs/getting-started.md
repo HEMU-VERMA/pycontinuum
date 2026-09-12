@@ -2,79 +2,97 @@
 
 ## Requirements
 
-- Python **3.12+**
-- A virtual environment is recommended for development.
+- Python 3.12 or newer
+- macOS, Linux, or Windows
+- A virtual environment is recommended
 
-## Install
+## Install on macOS
 
-Create an environment and install the package:
-
-```bash
-python -m venv .venv
-# macOS/Linux
+~~~bash
+python3 --version
+python3 -m venv .venv
 source .venv/bin/activate
-# Windows PowerShell
-.venv\Scripts\Activate.ps1
-
 python -m pip install --upgrade pip
-pip install pycontinuum
-```
+python -m pip install pycontinuum
+~~~
 
-For development tools:
+With Homebrew Python:
 
-```bash
-pip install "pycontinuum[dev]"
-```
+~~~bash
+brew install python@3.12
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install pycontinuum
+~~~
 
-## Hello, continuation
+## Install development tools
 
-```python
+~~~bash
+python -m pip install "pycontinuum[dev]"
+~~~
+
+This installs testing, linting, type checking, and documentation tools.
+
+## First continuation
+
+~~~python
 import asyncio
 from pycontinuum import reset, shift
 
-async def hello():
+async def greet():
     name = await shift(lambda k: k("World"))
     return f"Hello, {name}!"
 
-print(asyncio.run(reset(hello)))
-```
+print(asyncio.run(reset(greet)))
+~~~
 
-`reset` creates a delimited boundary. `shift` suspends the computation and gives a handler a `Continuation` for the rest of the computation.
+## Resume multiple times
 
-## Multiple resumes
+~~~python
+import asyncio
+from pycontinuum import reset, shift
 
-A continuation can be invoked more than once:
-
-```python
 async def choose():
-    value = await shift(lambda k: [k(10), k(20)])
+    value = await shift(lambda k: [k("A"), k("B")])
     return value
-```
 
-This replay-oriented model makes nondeterministic search possible without turning application code into a custom state machine.
+print(asyncio.run(reset(choose)))
+~~~
 
-## Development
+The same continuation is replayed for both values.
 
-Run the same checks used by CI:
+## Search
 
-```bash
+~~~python
+import asyncio
+from pycontinuum import reset, amb, fail
+
+async def solve():
+    x = await amb(1, 2, 3, 4, 5)
+    y = await amb(1, 2, 3, 4, 5)
+    if x * y != 6:
+        await fail()
+    return x, y
+
+print(asyncio.run(reset(solve)))
+~~~
+
+## Development checks
+
+~~~bash
 ruff check .
-mypy --strict src
+mypy src
 pytest
-```
+~~~
 
-Build the documentation locally:
+## Build documentation locally
 
-```bash
+~~~bash
 mkdocs serve
-```
+~~~
 
-Then open the local address printed by MkDocs.
+Then open the local URL printed by MkDocs.
 
-## Next steps
+## Next
 
-1. Read [Core Concepts](core-concepts.md).
-2. Try [Combinators](combinators.md).
-3. Learn about [Effects & Handlers](effects.md).
-4. Review [Resilience](resilience.md).
-5. Browse the [API Reference](api-reference/core.md).
+Continue with [Core Concepts](core-concepts.md), then [Combinators](combinators.md), [Effects & Handlers](effects.md), and [Resilience](resilience.md).
