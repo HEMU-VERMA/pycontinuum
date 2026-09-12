@@ -33,7 +33,7 @@ class Shift[A, B](Awaitable[A]):
     def __await__(self) -> Any:
         decision, _ = _ExecutionTracker.get_decision_or_signal(self)
         return decision
-        yield  # type: ignore[unreachable]
+        yield
 
 
 class _ExecutionTracker:
