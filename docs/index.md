@@ -1,83 +1,83 @@
 # PyContinuum
 
-**Multi-shot delimited continuations and algebraic effects for Python 3.12+.**
+**Multi-shot delimited continuations and algebraic effects for modern Python.**
 
-PyContinuum brings advanced control-flow and effect-handling primitives to ordinary async Python code. It is designed to keep business logic independent from infrastructure while providing practical resilience utilities.
+PyContinuum is an async-first Python library for capturing, replaying, and composing delimited continuations. It also provides search combinators, effect helpers, and resilience utilities.
 
-!!! tip "What you get"
-    Capture and replay continuations, express nondeterministic search, model effects explicitly, and compose production resilience patterns.
+## Install on macOS
 
-## Features
+PyContinuum targets Python 3.12+.
 
-- **Delimited continuations** — capture the rest of a computation with `shift()` and establish boundaries with `reset()`.
-- **Multi-shot execution** — resume the same continuation more than once.
-- **Search combinators** — `amb`, `fail`, `flip`, `once`, `maybe`, and `collect`.
-- **Effect-oriented architecture** — keep effect requests separate from their handlers.
-- **Resilience primitives** — retry, circuit breaker, timeout, fallback, saga, DLQ, bulkhead, and rate limiting.
-- **Serialization support** — continuations can be represented as application data with controlled restoration.
-- **Async-first** — built around Python's `async`/`await` model.
+~~~bash
+python3 --version
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install pycontinuum
+~~~
 
-## Install
+You do not need to clone the repository to install it.
 
-```bash
-pip install pycontinuum
-```
+## First program
 
-Development installation:
-
-```bash
-pip install "pycontinuum[dev]"
-```
-
-## Your first continuation
-
-```python
+~~~python
 import asyncio
 from pycontinuum import reset, shift
 
-async def greet():
+async def hello():
     name = await shift(lambda k: k("World"))
     return f"Hello, {name}!"
 
-print(asyncio.run(reset(greet)))
-```
+print(asyncio.run(reset(hello)))
+~~~
 
-The handler receives a continuation representing the remainder of `greet`. Calling it resumes the computation.
+reset establishes the boundary. shift captures the remainder and gives a Continuation to its handler.
 
-## Search example
+## Branching
 
-```python
+~~~python
 import asyncio
-from pycontinuum import reset, amb, fail
+from pycontinuum import reset, shift
 
-async def solve():
-    a = await amb(1, 2, 3)
-    b = await amb(4, 5, 6)
-    if a + b != 7:
-        await fail()
-    return a, b
+async def choose():
+    value = await shift(lambda k: [k(10), k(20)])
+    return value
 
-print(asyncio.run(reset(solve)))
-```
+print(asyncio.run(reset(choose)))
+~~~
 
-## Documentation map
+A continuation can be resumed more than once.
 
-| Section | Purpose |
-|---|---|
-| [Getting Started](getting-started.md) | Install and run your first program |
-| [Core Concepts](core-concepts.md) | Understand reset, shift, and continuations |
-| [Combinators](combinators.md) | Search and probabilistic programming |
-| [Effects & Handlers](effects.md) | Separate effect requests from implementations |
-| [Resilience](resilience.md) | Build fault-tolerant async workflows |
-| [Cloud Runtime](cloud.md) | Deployment and persistence guidance |
-| [API Reference](api-reference/core.md) | Generated API documentation |
-| [Examples](examples/search.md) | Practical patterns |
+## Main features
 
-## Project links
+- Delimited continuations
+- Multi-shot replay
+- Nondeterministic search
+- Probabilistic branching
+- Effect-oriented application architecture
+- Retry, circuit breaker, timeout and fallback helpers
+- Type information for mypy users
 
-- Source: [GitHub](https://github.com/HEMU-VERMA/pycontinuum)
-- Package: [PyPI](https://pypi.org/project/pycontinuum/)
-- License: Apache 2.0
+## Documentation
 
-!!! warning "API status"
-    PyContinuum is actively evolving. Check the API reference and release notes before depending on experimental features in production.
+- [Getting Started](getting-started.md)
+- [Core Concepts](core-concepts.md)
+- [Combinators](combinators.md)
+- [Effects & Handlers](effects.md)
+- [Resilience](resilience.md)
+- [Cloud Runtime](cloud.md)
+- [API Reference](api-reference/core.md)
+- [Examples](examples/search.md)
+
+## Type checking
+
+Users can install mypy separately:
+
+~~~bash
+python -m pip install mypy
+mypy your_program.py
+~~~
+
+Contributors can install the development extra and run mypy against the package.
+
+[GitHub repository](https://github.com/HEMU-VERMA/pycontinuum) · [PyPI](https://pypi.org/project/pycontinuum/)
