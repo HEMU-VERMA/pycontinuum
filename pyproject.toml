@@ -32,11 +32,18 @@ packages = ["src/pycontinuum"]
 
 [tool.mypy]
 python_version = "3.12"
-ignore_missing_imports = true
+packages = ["pycontinuum"]
 check_untyped_defs = true
-disallow_untyped_defs = false
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_any_generics = true
+disallow_untyped_decorators = true
+warn_return_any = true
 warn_redundant_casts = true
-warn_unused_ignores = false
+warn_unused_ignores = true
+no_implicit_optional = true
+strict_equality = true
+ignore_missing_imports = true
 
 [tool.ruff]
 line-length = 100
