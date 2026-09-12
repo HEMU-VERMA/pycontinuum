@@ -1,24 +1,91 @@
 # Effects & Handlers
 
-Effects let business logic request an operation without deciding how it is implemented.
+Effects separate what application code wants to do from how that operation is implemented.
 
-## The architecture
+## Architecture
 
-1. **Business logic** describes what it needs.
-2. **Effect requests** represent operations.
-3. **Handlers** implement those operations.
+~~~text
+Application logic
+       |
+       v
+Effect request
+       |
+       v
+Effect handler
+       |
+       +---- database
+       +---- HTTP service
+       +---- queue
+       +---- test fake
+~~~
 
-This separation makes tests easier because production adapters can be replaced with deterministic handlers.
+The same workflow can therefore use production infrastructure or deterministic test implementations.
 
-## Effect API
+## Public API
 
-PyContinuum exposes `Effect`, `perform`, and `effectful` for effect-oriented application code.
+PyContinuum exports:
 
-## Built-in handlers
+- Effect
+- effectful
+- perform
+- run_effect
 
-- `StateHandler` — simple get/put state behavior.
-- `Console` — console-print behavior.
+Effect is the abstraction for an effect request. perform executes a request through the active handling mechanism.
+
+## StateHandler
+
+StateHandler provides simple state operations.
+
+~~~python
+from pycontinuum import StateHandler
+
+state = StateHandler(initial_state=0)
+request = state.get()
+~~~
+
+It is useful for examples and tests where state should be explicit.
+
+## Console
+
+Console provides a small console-print operation.
+
+~~~python
+from pycontinuum import Console
+
+request = Console.print("hello")
+~~~
+
+## Why handlers?
+
+Without an effect boundary, business code tends to import concrete database clients, HTTP clients, queues, and SDKs directly.
+
+Handlers keep those choices at the infrastructure boundary. Tests can then provide small in-memory implementations.
 
 ## Replay safety
 
-Keep network calls, persistence, queues, and other irreversible operations behind explicit handlers. Replay should reproduce computation without accidentally duplicating an external side effect.
+This is the key rule when combining effects with continuations:
+
+**Keep irreversible side effects behind explicit handlers.**
+
+A continuation may replay captured computation. A payment, database write, or message publish must therefore be idempotent or protected against duplicate execution.
+
+## Suggested project layout
+
+~~~text
+myapp/
+  domain/
+    workflows.py
+  effects/
+    database.py
+    messaging.py
+  handlers/
+    production.py
+    testing.py
+  main.py
+~~~
+
+Keep domain workflows independent from concrete infrastructure.
+
+## Next
+
+Read [Core Concepts](core-concepts.md) to understand continuation replay, then [Resilience](resilience.md) for failure handling.
