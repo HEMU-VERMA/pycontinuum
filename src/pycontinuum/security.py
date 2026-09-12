@@ -12,9 +12,6 @@ from .core import Continuation
 T = TypeVar("T")
 
 
-# ---------------------------------------------------------------------------
-# Secret type – redacts its value when serialised or logged
-# ---------------------------------------------------------------------------
 class Secret[T]:
     """A container for sensitive data that is never exposed in serialised form."""
 
@@ -33,9 +30,6 @@ class Secret[T]:
         return "<redacted>"
 
 
-# ---------------------------------------------------------------------------
-# Safe serialisation format (JSON‑based)
-# ---------------------------------------------------------------------------
 def _redact_value(value: Any) -> Any:
     if isinstance(value, Secret):
         return {"__secret__": True}
@@ -46,21 +40,21 @@ def _redact_value(value: Any) -> Any:
         return repr(value)
 
 
-def dumps(cont: Continuation) -> bytes:
+def dumps(cont: Continuation[Any, Any]) -> bytes:
     """Serialize a continuation to a safe JSON string (no pickle)."""
     data = _continuation_to_dict(cont)
     return json.dumps(data, default=_json_serializer).encode("utf-8")
 
 
-def loads(blob: bytes, allowed_modules: set[str] | None = None) -> Continuation:
-    """Deserialize a continuation from its JSON representation.
-    Only functions from `allowed_modules` (if given) are permitted.
-    """
-    data = json.loads(blob.decode("utf-8"))
+def loads(
+    blob: bytes, allowed_modules: set[str] | None = None
+) -> Continuation[Any, Any]:
+    """Deserialize a continuation from its JSON representation."""
+    data: dict[str, Any] = json.loads(blob.decode("utf-8"))
     return _dict_to_continuation(data, allowed_modules=allowed_modules)
 
 
-def _continuation_to_dict(cont: Continuation) -> dict[str, Any]:
+def _continuation_to_dict(cont: Continuation[Any, Any]) -> dict[str, Any]:
     func = cont._func
     module = func.__module__
     qualname = func.__qualname__
@@ -78,7 +72,7 @@ def _continuation_to_dict(cont: Continuation) -> dict[str, Any]:
 
 def _dict_to_continuation(
     data: dict[str, Any], allowed_modules: set[str] | None = None
-) -> Continuation:
+) -> Continuation[Any, Any]:
     module = data["module"]
     if allowed_modules is not None and module not in allowed_modules:
         raise ValueError(f"Module '{module}' is not in the allowed list: {allowed_modules}")
@@ -99,14 +93,10 @@ def _json_serializer(obj: Any) -> Any:
     raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
-# ---------------------------------------------------------------------------
-# Runtime type validation for continuation inputs
-# ---------------------------------------------------------------------------
-def validate_continuation_input(cont: Continuation, value: Any) -> None:
-    """Check that `value` matches the expected input type `A` of the continuation."""
+def validate_continuation_input(cont: Continuation[Any, Any], value: Any) -> None:
+    """Check that value matches the expected input type of the continuation."""
     expected_type = getattr(cont, "_type_a", None)
     if expected_type is None:
-        # No type stored, skip validation.
         return
     if not _is_instance(value, expected_type):
         raise TypeError(
@@ -114,8 +104,8 @@ def validate_continuation_input(cont: Continuation, value: Any) -> None:
         )
 
 
-def validate_continuation_result(cont: Continuation, result: Any) -> None:
-    """Check that `result` matches the expected output type `B` of the continuation."""
+def validate_continuation_result(cont: Continuation[Any, Any], result: Any) -> None:
+    """Check that result matches the expected output type of the continuation."""
     expected_type = getattr(cont, "_type_b", None)
     if expected_type is None:
         return
@@ -141,9 +131,6 @@ def _is_instance(value: Any, tp: Any) -> bool:
     return isinstance(value, tp)
 
 
-# ---------------------------------------------------------------------------
-# Redaction filter for logging
-# ---------------------------------------------------------------------------
 class SecretRedactor(logging.Filter):
     """A logging filter that replaces Secret values with '[REDACTED]'."""
 
